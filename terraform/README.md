@@ -39,6 +39,17 @@ triggers) - it won't recreate a directory later removed by hand. Force it
 with `terraform apply -replace=null_resource.install_dirs` if that ever
 happens.
 
+[`traefik/`](traefik/), [`adguardhome/`](adguardhome/) and
+[`homeassistant/`](homeassistant/) also take a `docker_managed_volumes`
+variable (default `false`, preserving the bind-mount behavior above). Set
+it to `true` to skip `null_resource.install_dirs` entirely and let each
+named volume in the stack's Compose file fall back to a plain
+Docker-managed volume instead of a host bind mount - `install_dir` and
+`volume_mounts` are then unused. Switching
+an existing deployment from one mode to the other destroys and recreates
+its volumes, so back up first - Docker doesn't migrate data between a
+bind mount and a named volume.
+
 [`homeassistant/`](homeassistant/) additionally has a
 `null_resource.apparmor_profile`, following the same pattern (SSH to
 `ssh_host`, re-runs when its trigger - here a file hash - changes): it
@@ -82,8 +93,9 @@ bind mounts (e.g. `traefik/`) has an empty `volume_mounts` default.
 There's no separate config file for these, and no Ansible role either -
 `variables.tf` is the single source of truth.
 
-`endpoint_name` and `env` work the same way: left at their `variables.tf`
-defaults, or overridden via a real `terraform.tfvars`.
+`endpoint_name`, `env` and (where available) `docker_managed_volumes` work
+the same way: left at their `variables.tf` defaults, or overridden via a
+real `terraform.tfvars`.
 
 ## Running through Ansible (normal path)
 
@@ -98,6 +110,19 @@ wherever that command itself is invoked (not on the host), via the
 - `ssh_host`/`ssh_user`/`ssh_private_key_file` - the `remote_host`
   inventory host's address, `ansible_user` and
   `ansible_ssh_private_key_file`, for the `install_dirs` provisioner above
+
+That `remote_host` host is defined in `../inventory.ini` at the repo root
+(gitignored - copy [`../inventory.ini.example`](../inventory.ini.example) to create it):
+
+```ini
+[remote_host]
+192.168.1.10 ansible_user=admin ansible_ssh_private_key_file=~/.ssh/id_rsa
+```
+
+If the Docker host's address, SSH user or key ever changes, update it
+there - `portainer_api_url`, `ssh_host`, `ssh_user` and
+`ssh_private_key_file` are all derived from this single entry, so nothing
+in `terraform/` itself needs touching.
 
 `endpoint_name`, `install_dir`, `volume_mounts` and `env` all come from
 each stack's own `variables.tf` defaults by default, but any of them can
@@ -128,7 +153,7 @@ terraform apply
 ```
 
 Set `portainer_api_url` to the host's LAN address in `terraform.tfvars`
-(e.g. `https://192.168.15.15:9443/api`), and `ssh_host`/`ssh_user`/
+(e.g. `https://192.168.1.10:9443/api`), and `ssh_host`/`ssh_user`/
 `ssh_private_key_file` to reach it over SSH - `install_dirs` connects
 there regardless of where `terraform apply` itself runs, including when
 that's the host itself (in which case `ssh_host` would need to accept a

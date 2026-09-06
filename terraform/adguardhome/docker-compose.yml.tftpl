@@ -18,14 +18,18 @@ volumes:
 
   adguardhome_work:
     driver: local
+%{ if !docker_managed_volumes ~}
     driver_opts:
       type: none
       device: '${adguardhome_work_dir}'
       o: bind
+%{ endif ~}
 
   adguardhome_conf:
     driver: local
+%{ if !docker_managed_volumes ~}
     driver_opts:
       type: none
       device: '${adguardhome_conf_dir}'
       o: bind
+%{ endif ~}

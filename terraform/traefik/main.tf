@@ -6,6 +6,8 @@
 # become: true this replaced. Only re-runs if install_dir/volume_mounts
 # themselves change; it won't recreate a directory later removed by hand.
 resource "null_resource" "install_dirs" {
+  count = var.docker_managed_volumes ? 0 : 1
+
   triggers = {
     install_dir   = var.install_dir
     volume_mounts = jsonencode(var.volume_mounts)

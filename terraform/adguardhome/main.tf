@@ -6,6 +6,8 @@
 # become: true this replaced. Only re-runs if install_dir/volume_mounts
 # themselves change; it won't recreate a directory later removed by hand.
 resource "null_resource" "install_dirs" {
+  count = var.docker_managed_volumes ? 0 : 1
+
   triggers = {
     install_dir   = var.install_dir
     volume_mounts = jsonencode(var.volume_mounts)
@@ -62,8 +64,9 @@ resource "portainer_stack" "adguardhome" {
   stack_file_content = templatefile(
     "${path.module}/docker-compose.yml.tftpl",
     {
-      adguardhome_work_dir = "${var.install_dir}/${var.volume_mounts["adguardhome_work_dir"]}"
-      adguardhome_conf_dir = "${var.install_dir}/${var.volume_mounts["adguardhome_conf_dir"]}"
+      docker_managed_volumes = var.docker_managed_volumes
+      adguardhome_work_dir   = "${var.install_dir}/${var.volume_mounts["adguardhome_work_dir"]}"
+      adguardhome_conf_dir   = "${var.install_dir}/${var.volume_mounts["adguardhome_conf_dir"]}"
     }
   )
 

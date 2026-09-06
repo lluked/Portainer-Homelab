@@ -40,6 +40,12 @@ variable "volume_mounts" {
   default     = {}
 }
 
+variable "docker_managed_volumes" {
+  description = "If false, create install_dir/volume_mounts subdirectories on the host via SSH before deploying. Unused by this stack's Compose file (traefik has no bind mounts under it) - kept for consistency with the other stacks."
+  type        = bool
+  default     = false
+}
+
 variable "ssh_host" {
   description = "Host to SSH into to create install_dir and volume_mounts subdirectories - the actual Docker host, since that's where these bind-mount source paths must exist. Terraform itself doesn't need to run there; this is only used by the install_dirs provisioner's connection."
   type        = string
