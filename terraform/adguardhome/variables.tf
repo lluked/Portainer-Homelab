@@ -43,6 +43,12 @@ variable "volume_mounts" {
   }
 }
 
+variable "docker_managed_volumes" {
+  description = "If false, bind-mount install_dir/volume_mounts subdirectories on the host (pre-created via SSH by install_dirs) into the containers. If true, skip host directory creation and use plain Docker-managed named volumes instead - install_dir and volume_mounts are then unused."
+  type        = bool
+  default     = false
+}
+
 variable "ssh_host" {
   description = "Host to SSH into to create install_dir and volume_mounts subdirectories - the actual Docker host, since that's where these bind-mount source paths must exist. Terraform itself doesn't need to run there; this is only used by the install_dirs provisioner's connection."
   type        = string

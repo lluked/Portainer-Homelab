@@ -30,7 +30,9 @@ volumes:
 
   homeassistant_config:
     driver: local
+%{ if !docker_managed_volumes ~}
     driver_opts:
       type: none
       device: '${homeassistant_config_dir}'
       o: bind
+%{ endif ~}
