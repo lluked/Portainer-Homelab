@@ -81,6 +81,11 @@
               portainer_username: "{{ hostvars[portainer_stacks_target].portainer_username }}"
               portainer_password: "{{ hostvars[portainer_stacks_target].portainer_password }}"
               portainer_api_validate_certs: "{{ hostvars[portainer_stacks_target].portainer_api_validate_certs }}"
+              # Resolved from Vault via group_vars/remote_host/lab.yml - each
+              # stack's own Terraform (currently just traefik) has its own
+              # Vault fallback for this too (see terraform/*/main.tf) for when
+              # it's run standalone, without Ansible in the loop at all.
+              lab_domain: "{{ hostvars[portainer_stacks_target].lab_domain }}"
               ssh_host: "{{ portainer_stacks_target_host }}"
               ssh_user: "{{ hostvars[portainer_stacks_target].ansible_user }}"
               ssh_private_key_file: "{{ hostvars[portainer_stacks_target].ansible_ssh_private_key_file }}"

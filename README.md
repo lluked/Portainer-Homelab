@@ -76,7 +76,8 @@ Run [`./setup.sh`](setup.sh):
 2. Starts and, on first run, initializes the local Vault secrets backend
    (see [Secrets](#secrets) below), enables its `kv-v2` engine, and seeds
    `secret/portainer` (prompts for a username/password, defaulting to
-   `admin`/a random password if left blank).
+   `admin`/a random password if left blank) and `secret/lab` (prompts for
+   the lab's base domain, defaulting to `homelab.priv` if left blank).
 
 Safe to re-run any time - each step only does something if it hasn't been
 done yet.
@@ -119,7 +120,12 @@ also reads directly from Vault via the `hashicorp/vault` provider (through
 the shared [`terraform/modules/vault_env/`](terraform/modules/vault_env/) module), as a
 fallback for whichever of `portainer_username`/`portainer_password` isn't
 set - relevant for a standalone Terraform run with no Ansible involved at
-all. Both Ansible and Terraform authenticate to Vault with the root token,
+all. `lab_domain` (the base domain [`terraform/plans/traefik`](terraform/plans/traefik/)'s router
+rule is served under) follows the exact same pattern, one level simpler
+(a single value, not a username/password pair): seeded to `secret/lab` in
+Vault, read by [`group_vars/remote_host/lab.yml`](group_vars/remote_host/lab.yml), passed through
+by `portainer_stacks.yml`, with `terraform/plans/traefik/main.tf` falling
+back to Vault directly when unset. Both Ansible and Terraform authenticate to Vault with the root token,
 and both get Vault's address the same way: by parsing
 [`vault/vault.env`](vault/vault.env) (`VAULT_ADDR` and `VAULT_KEYS_FILE` -
 also read by `vault/vault-local.sh`, which sources it directly since
@@ -148,7 +154,8 @@ init` generates this Vault's unseal keys and root token, which can't be
 regenerated - saved to `vault/vault_keys.json`, git-ignored, never commit
 it), enables the `kv-v2` secrets engine, and seeds `secret/portainer`
 (prompts for a username/password, or generates a random password if left
-blank).
+blank) and `secret/lab` (prompts for the lab's base domain, defaulting to
+`homelab.priv` if left blank).
 
 `vault/vault_keys.json` is this setup's equivalent of the old `vault_pass`,
 and then some: whoever holds it can unseal Vault, read everything in it,

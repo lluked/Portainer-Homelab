@@ -1,6 +1,6 @@
 ---
 # Connection settings for the community.hashi_vault lookups in
-# portainer.yml - point them at the local Vault setup directly (see
+# portainer.yml and lab.yml - point them at the local Vault setup directly (see
 # ../../README.md's "Secrets" section). Parses
 # vault/vault.env (VAULT_ADDR, VAULT_KEYS_FILE) - the single source of
 # truth also read by vault/vault-local.sh and every

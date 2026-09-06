@@ -17,6 +17,12 @@ variable "portainer_password" {
   sensitive   = true
 }
 
+variable "lab_domain" {
+  description = "Base domain the stack's Traefik router rule is served under (traefik.<lab_domain>). Optional - if unset (the default), read from secret/lab in Vault instead (see main.tf); Vault isn't contacted at all if this is set explicitly."
+  type        = string
+  default     = null
+}
+
 variable "portainer_api_validate_certs" {
   description = "Whether to validate the Portainer API's TLS certificate."
   type        = bool

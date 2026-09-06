@@ -17,6 +17,12 @@ variable "portainer_password" {
   sensitive   = true
 }
 
+variable "lab_domain" {
+  description = "Base domain stacks' Traefik router rules are served under. Unused by this stack's Compose file (homeassistant has no Traefik labels) - kept for consistency with the other stacks, since playbooks/portainer_stacks.yml passes it to all of them."
+  type        = string
+  default     = null
+}
+
 variable "portainer_api_validate_certs" {
   description = "Whether to validate the Portainer API's TLS certificate."
   type        = bool

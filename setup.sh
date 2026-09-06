@@ -14,7 +14,9 @@
 #      vault/config.hcl), initializes it if needed (saving
 #      vault/vault_keys.json), enables the kv-v2 engine, and seeds
 #      secret/portainer if it's empty (prompts for username/password,
-#      defaulting to admin/a random password if left blank).
+#      defaulting to admin/a random password if left blank) and
+#      secret/lab if it's empty (prompts for the lab's base domain,
+#      defaulting to homelab.priv if left blank).
 #
 # Safe to re-run any time - each step only does something if it hasn't
 # been done yet.
@@ -131,6 +133,25 @@ else
   fi
   vault kv put secret/portainer username="$portainer_username" password="$portainer_password"
   unset portainer_username portainer_password
+fi
+
+if vault kv get secret/lab >/dev/null 2>&1; then
+  read -r -p "setup: secret/lab already exists - update it? [y/N]: " lab_update
+  if [[ "$lab_update" =~ ^[Yy] ]]; then
+    current_domain="$(vault kv get -field=domain secret/lab)"
+
+    read -r -p "setup: lab base domain (blank to keep current): " lab_domain
+    lab_domain="${lab_domain:-$current_domain}"
+
+    vault kv put secret/lab domain="$lab_domain"
+    unset current_domain lab_domain
+  fi
+  unset lab_update
+else
+  read -r -p "setup: lab base domain for secret/lab (blank for homelab.priv): " lab_domain
+  lab_domain="${lab_domain:-homelab.priv}"
+  vault kv put secret/lab domain="$lab_domain"
+  unset lab_domain
 fi
 
 echo "setup: done."

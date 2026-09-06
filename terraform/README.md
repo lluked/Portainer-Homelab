@@ -112,6 +112,11 @@ wherever that command itself is invoked (not on the host), via the
   from [`../group_vars/remote_host/portainer.yml`](../group_vars/remote_host/portainer.yml) (the
   first two resolved from Vault there, via `community.hashi_vault` - see
   [`../README.md`](../README.md)'s "Secrets" section)
+- `lab_domain` - from [`../group_vars/remote_host/lab.yml`](../group_vars/remote_host/lab.yml) (also resolved
+  from Vault, same pattern as `portainer_username`/`portainer_password`
+  above). Passed to every stack for consistency, but only
+  [`plans/traefik/`](plans/traefik/) actually uses it (its router rule is
+  `traefik.<lab_domain>`) - the others declare it in `variables.tf` unused.
 - `ssh_host`/`ssh_user`/`ssh_private_key_file` - the `remote_host`
   inventory host's address, `ansible_user` and
   `ansible_ssh_private_key_file`, for the `install_dirs` provisioner above
@@ -184,7 +189,8 @@ environment variables to export, it parses `../../vault/vault.env` for
 Vault's address and where to find the root token). To skip Vault entirely for a
 given run, uncomment both in `terraform.tfvars` (or set via `-var`) -
 Vault is then never contacted (setting only one still triggers a Vault
-read for the other).
+read for the other). [`plans/traefik/`](plans/traefik/)'s `lab_domain` works the same
+way, falling back to `secret/lab` (field `domain`) when left unset.
 
 ## State
 
