@@ -42,7 +42,29 @@ profile docker-homeassistant flags=(attach_disconnected,mediate_deleted) {
   deny network alg,
   # Disallow AF_VSOCK to prevent host/guest communication.
   deny network vsock,
-  capability,
+  # Docker's default profile allows any capability the container holds
+  # (a bare, unqualified `capability,` rule) - since AppArmor can only
+  # restrict, not grant, capabilities, that's normally a no-op on top of
+  # the runtime's own cap_add/cap_drop. Enumerated explicitly here
+  # instead, so AppArmor is an actual second gate: Docker's standard
+  # default set, plus net_admin for docker-compose.yml.tftpl's cap_add
+  # (net_raw is already in the default set - listed there too anyway,
+  # matching what home-assistant.io's Bluetooth docs ask for).
+  capability chown,
+  capability dac_override,
+  capability fowner,
+  capability fsetid,
+  capability kill,
+  capability mknod,
+  capability net_admin,
+  capability net_bind_service,
+  capability net_raw,
+  capability setfcap,
+  capability setgid,
+  capability setpcap,
+  capability setuid,
+  capability sys_chroot,
+  capability audit_write,
   file,
   umount,
 
