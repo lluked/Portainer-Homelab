@@ -1,0 +1,8 @@
+# HashiCorp Vault (local secrets backend - see README.md's "Secrets" section)
+data/
+vault.pid
+vault.log
+vault_keys.json
+# Generated from config.hcl.tmpl by vault/scripts/vault-local.sh - don't
+# edit or commit it, edit the template instead.
+config.hcl

@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars for standalone use (never commit the real file -
+# it and *.tfvars are gitignored). When applied through
+# playbooks/portainer_stacks.yml instead, portainer_api_url/
+# portainer_api_validate_certs/ssh_host/ssh_user/ssh_private_key_file are
+# supplied for you via TF_VAR_ environment variables (see that playbook) -
+# endpoint_name, env, install_dir and volume_mounts (homeassistant_config_dir)
+# are this stack's own concern either way (left at their variables.tf
+# defaults below, or overridden here), since nothing outside Terraform sets
+# them. Terraform itself creates install_dir and each volume_mounts
+# subdirectory before applying, over SSH to ssh_host (see main.tf) - that's
+# the actual Docker host, which is not necessarily wherever `terraform
+# apply` itself runs from.
+
+# portainer_username/portainer_password are left commented out below - if
+# unset, both are read from secret/portainer in Vault instead (see
+# provider.tf and ../../../README.md's "Secrets" section). Uncomment both to
+# skip Vault entirely for this stack.
+portainer_api_url            = "https://192.168.1.10:9443/api"
+# portainer_username          = "admin"
+# portainer_password          = "changeme"
+portainer_api_validate_certs = false
+ssh_host                     = "192.168.1.10"
+ssh_user                     = "admin"
+ssh_private_key_file         = "~/.ssh/id_rsa"
+endpoint_name                = "rootless"
+
+env                          = {}

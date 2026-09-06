@@ -22,7 +22,7 @@
     # inventory_hostname is the host's address itself in this inventory (no
     # separate ansible_host set) - fall back to it if that ever changes.
     portainer_stacks_target_host: "{{ hostvars[portainer_stacks_target].ansible_host | default(portainer_stacks_target) }}"
-    portainer_stacks_terraform_root: "{{ playbook_dir }}/../terraform"
+    portainer_stacks_terraform_root: "{{ playbook_dir }}/../terraform/plans"
     # Each stack's install_dirs resource runs "sudo mkdir"/"sudo chown" over
     # SSH via Terraform's own remote-exec provisioner, which (unlike Ansible's
     # become) has no way to answer an interactive sudo password prompt - it
@@ -72,7 +72,12 @@
               portainer_api_url: "https://{{ portainer_stacks_target_host }}:9443/api"
               # hostvars, not bare refs: these live in group_vars/remote_host/*,
               # which is only attached to the remote_host group's members - this
-              # play runs on localhost, which isn't one of them.
+              # play runs on localhost, which isn't one of them. portainer_username/
+              # portainer_password are themselves resolved from Vault there (see
+              # group_vars/remote_host/portainer.yml) - each stack's Terraform
+              # also has its own Vault fallback for these two (see
+              # terraform/*/provider.tf) for when it's run standalone, without
+              # Ansible in the loop at all.
               portainer_username: "{{ hostvars[portainer_stacks_target].portainer_username }}"
               portainer_password: "{{ hostvars[portainer_stacks_target].portainer_password }}"
               portainer_api_validate_certs: "{{ hostvars[portainer_stacks_target].portainer_api_validate_certs }}"

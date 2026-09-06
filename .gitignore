@@ -8,9 +8,6 @@ __pycache__/
 # Ansible
 inventory.ini
 
-# Vault Password File
-vault_pass
-
 # Media Stack
 media-stack/
 *media-stack.yml

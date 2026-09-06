@@ -1,0 +1,26 @@
+---
+# Connection settings for the community.hashi_vault lookups in
+# portainer.yml - point them at the local Vault setup directly (see
+# ../../README.md's "Secrets" section). Parses
+# vault/vault.env (VAULT_ADDR, VAULT_KEYS_FILE) - the single source of
+# truth also read by vault/vault-local.sh and every
+# terraform/*/provider.tf (via terraform/modules/vault_env/main.tf) -
+# rather than hardcoding either value here too. Passed as explicit lookup() kwargs
+# (url=vault_addr, token=vault_root_token) in each lookup call rather than
+# via community.hashi_vault's "ansible_hashi_vault_*" magic vars - those
+# trigger "error performing token check: failed to look up namespace from
+# the token: no namespace" with this collection/hvac version when the
+# token comes from a templated value rather than a hardcoded string;
+# passing explicitly as lookup() args sidesteps it.
+#
+# inventory_dir (not a plain relative path): ansible.builtin.file resolves
+# relative paths against the calling playbook's own directory (e.g.
+# playbooks/), not the repo root - inventory_dir is the directory holding
+# inventory.ini (see ansible.cfg), which is the repo root, and stays
+# correct regardless of which playbook this is evaluated from.
+vault_env_content: "{{ lookup('ansible.builtin.file', inventory_dir + '/vault/vault.env') }}"
+vault_addr: "{{ (vault_env_content | regex_search('^VAULT_ADDR=(.*)$', '\\1', multiline=True))[0] }}"
+# Relative to vault/ (the convention shared with vault/vault-local.sh
+# and terraform/modules/vault_env/main.tf).
+vault_keys_file: "{{ (vault_env_content | regex_search('^VAULT_KEYS_FILE=(.*)$', '\\1', multiline=True))[0] }}"
+vault_root_token: "{{ (lookup('ansible.builtin.file', inventory_dir + '/vault/' + vault_keys_file) | from_json).root_token }}"
