@@ -5,15 +5,22 @@ variable "portainer_api_url" {
 }
 
 variable "portainer_username" {
-  description = "Portainer username used to authenticate."
+  description = "Portainer username used to authenticate. Optional - if unset (the default), read from secret/portainer in Vault instead (see provider.tf); Vault isn't contacted at all if this is set explicitly."
   type        = string
-  default     = "admin"
+  default     = null
 }
 
 variable "portainer_password" {
-  description = "Portainer password used to authenticate."
+  description = "Portainer password used to authenticate. Optional - if unset (the default), read from secret/portainer in Vault instead (see provider.tf); Vault isn't contacted at all if this is set explicitly."
   type        = string
+  default     = null
   sensitive   = true
+}
+
+variable "lab_domain" {
+  description = "Base domain stacks' Traefik router rules are served under. Unused by this stack's Compose file (homeassistant has no Traefik labels) - kept for consistency with the other stacks, since playbooks/portainer_stacks.yml passes it to all of them."
+  type        = string
+  default     = null
 }
 
 variable "portainer_api_validate_certs" {

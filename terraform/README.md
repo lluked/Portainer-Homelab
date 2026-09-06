@@ -1,24 +1,27 @@
 # Terraform stacks
 
-Each subdirectory here is a self-contained Terraform root module that
-deploys one Docker Compose stack to Portainer, using the
+Each subdirectory under [`plans/`](plans/) is a self-contained Terraform root
+module that deploys one Docker Compose stack to Portainer, using the
 [`portainer/portainer`](https://registry.terraform.io/providers/portainer/portainer/latest)
 provider's `portainer_stack` resource. There is no Ansible role for this
 anymore - [`../playbooks/portainer_stacks.yml`](../playbooks/portainer_stacks.yml) just runs `terraform
 init`/`apply` here directly (via the `terraform` CLI, not an Ansible
 Terraform module), from wherever that playbook itself runs.
 
-- [`traefik/`](traefik/)
-- [`adguardhome/`](adguardhome/)
-- [`homeassistant/`](homeassistant/)
-- [`media-stack/`](media-stack/)
+- [`plans/traefik/`](plans/traefik/)
+- [`plans/adguardhome/`](plans/adguardhome/)
+- [`plans/homeassistant/`](plans/homeassistant/)
+
+[`modules/vault_env/`](modules/vault_env/) is not one of these - it's a shared module each
+stack's `provider.tf` calls to read the local Vault setup's address and
+root token (see [`../README.md`](../README.md)'s "Secrets" section).
 
 ## What Terraform does and doesn't own
 
 Terraform owns the whole thing: the rendered Compose content, the stack's
 environment variables, *and* the host-side bind-mount directories
 referenced by each stack's Compose file (e.g.
-`/opt/media-stack/data/qbittorrent`). Each stack's `main.tf` has a
+`/opt/adguardhome/work`). Each stack's `main.tf` has a
 `null_resource.install_dirs` whose `remote-exec` provisioner runs `sudo
 mkdir -p`/`chown` for `install_dir` and every `volume_mounts` entry before
 the `portainer_stack` resource (`depends_on`).
@@ -39,8 +42,8 @@ triggers) - it won't recreate a directory later removed by hand. Force it
 with `terraform apply -replace=null_resource.install_dirs` if that ever
 happens.
 
-[`traefik/`](traefik/), [`adguardhome/`](adguardhome/) and
-[`homeassistant/`](homeassistant/) also take a `docker_managed_volumes`
+[`plans/traefik/`](plans/traefik/), [`plans/adguardhome/`](plans/adguardhome/) and
+[`plans/homeassistant/`](plans/homeassistant/) also take a `docker_managed_volumes`
 variable (default `false`, preserving the bind-mount behavior above). Set
 it to `true` to skip `null_resource.install_dirs` entirely and let each
 named volume in the stack's Compose file fall back to a plain
@@ -50,10 +53,10 @@ an existing deployment from one mode to the other destroys and recreates
 its volumes, so back up first - Docker doesn't migrate data between a
 bind mount and a named volume.
 
-[`homeassistant/`](homeassistant/) additionally has a
+[`plans/homeassistant/`](plans/homeassistant/) additionally has a
 `null_resource.apparmor_profile`, following the same pattern (SSH to
 `ssh_host`, re-runs when its trigger - here a file hash - changes): it
-uploads [`homeassistant/apparmor/docker-homeassistant`](homeassistant/apparmor/docker-homeassistant) and loads it with
+uploads [`plans/homeassistant/apparmor/docker-homeassistant`](plans/homeassistant/apparmor/docker-homeassistant) and loads it with
 `apparmor_parser -r`, so the stack's Compose file can reference it via
 `security_opt: apparmor=docker-homeassistant` instead of Docker's default
 profile, which denies the D-Bus access Home Assistant's Bluetooth
@@ -64,7 +67,7 @@ integration needs to reach BlueZ.
 Each stack's `variables.tf` declares `install_dir` (this stack's own
 directory on the host, e.g. `/opt/adguardhome`) and `volume_mounts`
 (bind-mount subdirectories the stack's Compose file needs, keyed by name
-and given **relative** to `install_dir`), e.g. ([`adguardhome/variables.tf`](adguardhome/variables.tf)):
+and given **relative** to `install_dir`), e.g. ([`plans/adguardhome/variables.tf`](plans/adguardhome/variables.tf)):
 
 ```hcl
 variable "install_dir" {
@@ -88,7 +91,7 @@ happen in the variable defaults themselves. The resulting values are
 passed into the Compose template under names matching the `volume_mounts`
 keys (e.g. `adguardhome_work_dir`), and also drive the
 `null_resource.install_dirs` provisioner described above. A stack with no
-bind mounts (e.g. `traefik/`) has an empty `volume_mounts` default.
+bind mounts (e.g. `plans/traefik/`) has an empty `volume_mounts` default.
 
 There's no separate config file for these, and no Ansible role either -
 `variables.tf` is the single source of truth.
@@ -106,7 +109,14 @@ wherever that command itself is invoked (not on the host), via the
 [`../playbooks/portainer_stacks.yml`](../playbooks/portainer_stacks.yml)):
 - `portainer_api_url` - `https://<remote_host inventory address>:9443/api`
 - `portainer_username`/`portainer_password`/`portainer_api_validate_certs` -
-  from [`../group_vars/remote_host/portainer.yml`](../group_vars/remote_host/portainer.yml) (vaulted password)
+  from [`../group_vars/remote_host/portainer.yml`](../group_vars/remote_host/portainer.yml) (the
+  first two resolved from Vault there, via `community.hashi_vault` - see
+  [`../README.md`](../README.md)'s "Secrets" section)
+- `lab_domain` - from [`../group_vars/remote_host/lab.yml`](../group_vars/remote_host/lab.yml) (also resolved
+  from Vault, same pattern as `portainer_username`/`portainer_password`
+  above). Passed to every stack for consistency, but only
+  [`plans/traefik/`](plans/traefik/) actually uses it (its router rule is
+  `traefik.<lab_domain>`) - the others declare it in `variables.tf` unused.
 - `ssh_host`/`ssh_user`/`ssh_private_key_file` - the `remote_host`
   inventory host's address, `ansible_user` and
   `ansible_ssh_private_key_file`, for the `install_dirs` provisioner above
@@ -143,21 +153,44 @@ This requires:
 ## Running standalone
 
 Each directory can also be applied directly, e.g. from a workstation on
-the same LAN as the host:
+the same LAN as the host. `../../setup.sh` (re-runnable any time
+`inventory.ini` changes) generates `portainer_api_url`/`ssh_host`/
+`ssh_user`/`ssh_private_key_file` for every stack at once, from
+`inventory.ini`'s `[remote_host]` entry, as a git-ignored
+`plan.auto.tfvars` in each `terraform/plans/<stack>/` - Terraform loads
+`*.auto.tfvars` automatically, so no `-var-file` or manual
+`terraform.tfvars` copy is needed for those stacks:
 
 ```sh
-cd terraform/adguardhome
-cp terraform.tfvars.example terraform.tfvars   # fill in real values; never commit it
+../../setup.sh   # from any terraform/plans/<stack>/ dir, or just ./setup.sh from the repo root
+cd terraform/plans/adguardhome
 terraform init
 terraform apply
 ```
 
-Set `portainer_api_url` to the host's LAN address in `terraform.tfvars`
-(e.g. `https://192.168.1.10:9443/api`), and `ssh_host`/`ssh_user`/
-`ssh_private_key_file` to reach it over SSH - `install_dirs` connects
-there regardless of where `terraform apply` itself runs, including when
-that's the host itself (in which case `ssh_host` would need to accept a
-loopback SSH connection).
+`install_dirs` connects to `ssh_host` over SSH regardless of where
+`terraform apply` itself runs, including when that's the host itself (in
+which case `ssh_host` would need to accept a loopback SSH connection).
+
+To set any of those four by hand instead - e.g. a host not in
+`inventory.ini` at all - copy `terraform.tfvars.example` to
+`terraform.tfvars` (never committed) and fill it in; explicit
+`terraform.tfvars` values there don't override `plan.auto.tfvars` (last
+loaded wins, and `*.auto.tfvars` loads after `terraform.tfvars`), so
+either don't run `setup.sh` for that stack or remove its
+`plan.auto.tfvars` afterwards.
+
+`portainer_username`/`portainer_password` are left commented out in
+`terraform.tfvars.example` - by default every stack reads both from
+`secret/portainer` in the local HashiCorp Vault instead (see
+[`../README.md`](../README.md)'s "Secrets" section and each stack's
+`provider.tf`, via the shared [`modules/vault_env/`](modules/vault_env/) module - no
+environment variables to export, it parses `../../vault/vault.env` for
+Vault's address and where to find the root token). To skip Vault entirely for a
+given run, uncomment both in `terraform.tfvars` (or set via `-var`) -
+Vault is then never contacted (setting only one still triggers a Vault
+read for the other). [`plans/traefik/`](plans/traefik/)'s `lab_domain` works the same
+way, falling back to `secret/lab` (field `domain`) when left unset.
 
 ## State
 

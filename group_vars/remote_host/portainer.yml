@@ -8,8 +8,8 @@ portainer_api_url: "https://127.0.0.1:9443/api"
 # Portainer's self-signed cert (unless you've replaced it) won't validate.
 portainer_api_validate_certs: false
 
-# Username and password for the Portainer instance.
-portainer_username: admin
-
-# Password for the Portainer instance. Loaded from the vault, so not stored in plaintext in this repo.
-portainer_password: "{{ vault_portainer_password }}"
+# Username and password for the Portainer instance. Read from the local
+# HashiCorp Vault (see hashi_vault.yml and README.md's "Secrets" section),
+# so not stored in plaintext in this repo.
+portainer_username: "{{ lookup('community.hashi_vault.vault_kv2_get', 'portainer', engine_mount_point='secret', url=vault_addr, token=vault_root_token).secret.username }}"
+portainer_password: "{{ lookup('community.hashi_vault.vault_kv2_get', 'portainer', engine_mount_point='secret', url=vault_addr, token=vault_root_token).secret.password }}"

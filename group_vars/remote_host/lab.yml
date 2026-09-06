@@ -1,0 +1,7 @@
+---
+
+# Base domain stacks' Traefik router rules are served under (see
+# terraform/plans/traefik/docker-compose.yml.tftpl). Read from the local
+# HashiCorp Vault (see hashi_vault.yml and README.md's "Secrets" section),
+# same pattern as portainer_username/portainer_password in portainer.yml.
+lab_domain: "{{ lookup('community.hashi_vault.vault_kv2_get', 'lab', engine_mount_point='secret', url=vault_addr, token=vault_root_token).secret.domain }}"

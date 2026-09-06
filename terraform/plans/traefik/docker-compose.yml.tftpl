@@ -29,7 +29,7 @@ services:
       - traefik.enable=true
     # ROUTERS
       - traefik.http.routers.traefik.service=api@internal
-      - traefik.http.routers.traefik.rule=Host(`traefik.media-stack.priv`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+      - traefik.http.routers.traefik.rule=Host(`traefik.${lab_domain}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
       - traefik.http.routers.traefik.entrypoints=websecure
     # SERVICES
       - traefik.http.services.traefik.loadbalancer.server.scheme=https

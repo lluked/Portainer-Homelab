@@ -1,0 +1,24 @@
+# Local Vault server config template - vault/vault-local.sh renders
+# this into vault/config.hcl (git-ignored, generated - don't edit it by
+# hand, it's overwritten on every start) at start time, filling in the
+# listener address placeholder below from the host:port parsed out of
+# vault.env's VAULT_ADDR, so that value has exactly one source of truth
+# instead of being duplicated by hand between the two files. Runs on this
+# machine only (the one ansible-playbook/terraform are invoked from),
+# never on remote_host (the Pi). See README.md's "Secrets" section for
+# the one-time init procedure.
+
+storage "file" {
+  # Relative to whatever directory "vault server" is started from, not to
+  # this config file's own location - vault/vault-local.sh starts it
+  # with vault/ as the cwd, so this resolves to vault/data.
+  path = "data"
+}
+
+listener "tcp" {
+  address     = "__VAULT_LISTEN_ADDR__"
+  tls_disable = 1
+}
+
+disable_mlock = true
+ui            = true
