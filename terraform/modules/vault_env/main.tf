@@ -45,11 +45,11 @@ output "address" {
 
 output "token" {
   # Falls back to an empty token when vault/vault_keys.json doesn't exist
-  # yet, or isn't needed at all because the calling stack's
-  # portainer_username/portainer_password are both set explicitly. Kept as
-  # a ternary rather than coalesce() - coalesce() errors out when every
-  # argument is null/"", which that empty-string fallback deliberately
-  # allows.
+  # yet, or isn't needed at all because the calling stack doesn't actually
+  # read anything from Vault this run (e.g. every secret it'd otherwise
+  # look up there is supplied directly instead). Kept as a ternary rather
+  # than coalesce() - coalesce() errors out when every argument is
+  # null/"", which that empty-string fallback deliberately allows.
   value     = var.token_override != null ? var.token_override : try(jsondecode(file("${local.repo_root}/vault/${local.vault_keys_file}")).root_token, "")
   sensitive = true
 }
