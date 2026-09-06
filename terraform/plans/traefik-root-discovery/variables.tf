@@ -42,7 +42,7 @@ variable "install_dir" {
 }
 
 variable "volume_mounts" {
-  description = "Bind-mount source subdirectories this stack needs, relative to install_dir, keyed by name. install_dir/<value> must exist before the stack is deployed - the Ansible role reads this variable's resolved value (via `terraform show -json` on a plan), together with install_dir, to pre-create them on the host before applying. dynamic_dir is where traefik-root-discovery writes the Traefik dynamic (file provider) config it derives from root containers' traefik.* labels - plans/traefik/ bind-mounts this same host path read-only (see its root_dynamic_config_dir variable), which is why this stack must be applied before plans/traefik/ (see ../../../playbooks/portainer_stacks.yml's stack order)."
+  description = "Bind-mount source subdirectories this stack needs, relative to install_dir, keyed by name. install_dir/<value> must exist before the stack is deployed - the Ansible role reads this variable's resolved value (via `terraform show -json` on a plan), together with install_dir, to pre-create them on the host before applying. dynamic_dir is where traefik-root-discovery writes the Traefik dynamic (file provider) config it derives from root containers' traefik.* labels - plans/traefik/ bind-mounts this same host path read-only (see its root_dynamic_config_dir variable). plans/traefik/ also creates and chowns this same path itself (its own null_resource.root_dynamic_config_dir), so either stack can be applied first - see ../../../playbooks/portainer_stacks.yml's stack order."
   type        = map(string)
   default = {
     dynamic_dir = "dynamic"

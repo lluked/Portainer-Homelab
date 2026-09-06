@@ -47,10 +47,13 @@ root socket:
   `--providers.file` (see `plans/traefik/variables.tf`'s
   `root_dynamic_config_dir`), alongside its unchanged Docker provider.
 
-`plans/traefik-root-discovery/` has to be applied before `plans/traefik/` (its
-output directory needs to already exist) -
-[`../playbooks/portainer_stacks.yml`](../playbooks/portainer_stacks.yml) orders it first. A
-root-hosted stack only shows up in Traefik once its container's port is
+Either stack can be applied first - both `plans/traefik-root-discovery/`'s and
+`plans/traefik/`'s `main.tf` create and chown the shared
+`root_dynamic_config_dir` path themselves (whichever runs second just finds it
+already there, and its own mkdir/chown is a no-op), so
+[`../playbooks/portainer_stacks.yml`](../playbooks/portainer_stacks.yml) doesn't need to order them relative to each
+other - it lists `traefik` first since the other root-hosted stacks need it up
+to be routed anywhere. A root-hosted stack only shows up in Traefik once its container's port is
 reachable at `root_host_address` - either published to the host directly
 (adguardhome) or, for a `network_mode: host` container like homeassistant,
 just the port it listens on (Docker reports no port mapping for those,
@@ -93,6 +96,16 @@ Docker-managed volume instead of a host bind mount - `install_dir` and
 an existing deployment from one mode to the other destroys and recreates
 its volumes, so back up first - Docker doesn't migrate data between a
 bind mount and a named volume.
+
+[`plans/traefik/`](plans/traefik/) additionally has a
+`null_resource.root_dynamic_config_dir`, following the same pattern but
+unconditional (unlike `install_dirs` above, it doesn't skip when
+`docker_managed_volumes` is set, since `root_dynamic_config_dir` isn't one of
+this stack's own `volume_mounts`): it creates and chowns
+`root_dynamic_config_dir` (see "Two Docker daemons, one host" above) so
+Traefik can bind-mount it read-only without this stack depending on
+`plans/traefik-root-discovery/` having been applied first - that stack
+creates and chowns the same path the same way, so either apply order works.
 
 [`plans/homeassistant/`](plans/homeassistant/) additionally has a
 `null_resource.apparmor_profile`, following the same pattern (SSH to
