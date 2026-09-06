@@ -7,7 +7,3 @@ __pycache__/
 
 # Ansible
 inventory.ini
-
-# Media Stack
-media-stack/
-*media-stack.yml
