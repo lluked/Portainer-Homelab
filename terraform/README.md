@@ -39,6 +39,15 @@ triggers) - it won't recreate a directory later removed by hand. Force it
 with `terraform apply -replace=null_resource.install_dirs` if that ever
 happens.
 
+[`homeassistant/`](homeassistant/) additionally has a
+`null_resource.apparmor_profile`, following the same pattern (SSH to
+`ssh_host`, re-runs when its trigger - here a file hash - changes): it
+uploads [`homeassistant/apparmor/docker-homeassistant`](homeassistant/apparmor/docker-homeassistant) and loads it with
+`apparmor_parser -r`, so the stack's Compose file can reference it via
+`security_opt: apparmor=docker-homeassistant` instead of Docker's default
+profile, which denies the D-Bus access Home Assistant's Bluetooth
+integration needs to reach BlueZ.
+
 ## Where host install directories live
 
 Each stack's `variables.tf` declares `install_dir` (this stack's own

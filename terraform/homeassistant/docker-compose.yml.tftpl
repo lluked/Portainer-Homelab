@@ -10,6 +10,13 @@ services:
       - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
+    # Docker's default AppArmor profile denies all D-Bus traffic, which
+    # blocks the Bluetooth integration's access to BlueZ - see
+    # apparmor/docker-homeassistant and main.tf's
+    # null_resource.apparmor_profile, which loads this profile onto the
+    # host.
+    security_opt:
+      - apparmor=docker-homeassistant
     # Host networking is Home Assistant's own recommendation: mDNS/SSDP
     # discovery, HomeKit, DHCP-based integrations etc. rely on seeing the
     # LAN directly, which a bridge network + port mapping can't provide.
