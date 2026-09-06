@@ -18,7 +18,7 @@ variable "portainer_password" {
 }
 
 variable "lab_domain" {
-  description = "Base domain stacks' Traefik router rules are served under. Unused by this stack's Compose file (adguardhome has no Traefik labels) - kept for consistency with the other stacks, since playbooks/portainer_stacks.yml passes it to all of them."
+  description = "Base domain this stack's Traefik router rule is served under (adguardhome.<lab_domain>). Optional - if unset (the default), read from secret/lab in Vault instead (see main.tf); Vault isn't contacted at all if this is set explicitly."
   type        = string
   default     = null
 }

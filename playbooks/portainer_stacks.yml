@@ -33,9 +33,16 @@
     portainer_stacks_sudoers_path: /etc/sudoers.d/portainer_stacks_terraform
 
     # Each entry's "name" selects the terraform/<name> directory; any other
-    # keys are extra Terraform variables merged on top of the common set
+    # keys are extra Terraform variables merged on top of the common set.
+    # traefik and traefik-root-discovery can apply in either order: each
+    # creates and chows root_dynamic_config_dir itself (see
+    # terraform/plans/traefik/variables.tf's root_dynamic_config_dir), so
+    # neither depends on the other's install_dirs having already run.
+    # traefik listed first anyway, since it's the one both adguardhome and
+    # homeassistant need up for their traefik.* labels to route anywhere.
     portainer_stacks:
       - name: traefik
+      - name: traefik-root-discovery
       - name: adguardhome
       - name: homeassistant
 

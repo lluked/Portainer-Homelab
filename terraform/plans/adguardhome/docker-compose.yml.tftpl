@@ -13,6 +13,15 @@ services:
     volumes:
       - adguardhome_work:/opt/adguardhome/work
       - adguardhome_conf:/opt/adguardhome/conf
+    labels:
+      - traefik.enable=true
+    # ROUTERS
+      - traefik.http.routers.adguardhome.service=adguardhome
+      - traefik.http.routers.adguardhome.rule=Host(`adguardhome.${lab_domain}`)
+      - traefik.http.routers.adguardhome.entrypoints=websecure
+    # SERVICES
+      - traefik.http.services.adguardhome.loadbalancer.server.scheme=http
+      - traefik.http.services.adguardhome.loadbalancer.server.port=3000
 
 volumes:
 

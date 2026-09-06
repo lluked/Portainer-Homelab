@@ -89,7 +89,8 @@ done yet.
    bootstrapped automatically from the Portainer password read out of
    Vault, and the rootless environment registered.
 2. `ansible-playbook` [`playbooks/portainer_stacks.yml`](playbooks/portainer_stacks.yml) - deploys the
-   Terraform-managed stacks ([`terraform/plans/traefik`](terraform/plans/traefik/), [`terraform/plans/adguardhome`](terraform/plans/adguardhome/),
+   Terraform-managed stacks ([`terraform/plans/traefik-root-discovery`](terraform/plans/traefik-root-discovery/), [`terraform/plans/traefik`](terraform/plans/traefik/),
+   [`terraform/plans/adguardhome`](terraform/plans/adguardhome/),
    [`terraform/plans/homeassistant`](terraform/plans/homeassistant/), ...) to Portainer. Requires a `terraform`
    binary and the `community.general` collection wherever this is run
    from (not vendored here, unlike the `homelab.*` collections). See

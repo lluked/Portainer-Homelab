@@ -12,6 +12,12 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=proxy
+      # Picks up containers on the root Docker daemon (this container's own
+      # rootless daemon can't see those directly) - see
+      # terraform/plans/traefik-root-discovery/, which writes this
+      # directory from their traefik.* labels.
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
       - --entryPoints.web.address=:80
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
@@ -23,6 +29,7 @@ services:
       - 8080:8080/tcp
     volumes:
       - /var/run/user/1000/docker.sock:/var/run/docker.sock:ro
+      - ${root_dynamic_config_dir}:/etc/traefik/dynamic:ro
     networks:
       - proxy
     labels:

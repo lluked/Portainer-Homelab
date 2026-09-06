@@ -1,3 +1,32 @@
+# Creates root_dynamic_config_dir on ssh_host before Traefik bind-mounts it
+# read-only, so this stack no longer depends on ../traefik-root-discovery/
+# having been applied first - that stack creates and populates this same
+# path too (see its own install_dirs), chowned the same way, so whichever
+# stack applies first, the other's mkdir/chown here is just a no-op.
+# Unconditional (unlike install_dirs below, which is skipped when
+# docker_managed_volumes is set) since this path isn't one of this stack's
+# own volume_mounts - Traefik always reads it from the host regardless of
+# that setting.
+resource "null_resource" "root_dynamic_config_dir" {
+  triggers = {
+    root_dynamic_config_dir = var.root_dynamic_config_dir
+  }
+
+  connection {
+    type        = "ssh"
+    host        = var.ssh_host
+    user        = var.ssh_user
+    private_key = file(pathexpand(var.ssh_private_key_file))
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mkdir -p ${var.root_dynamic_config_dir}",
+      "sudo chown \"$(id -u):$(id -g)\" ${var.root_dynamic_config_dir}",
+    ]
+  }
+}
+
 # Creates install_dir and each volume_mounts subdirectory under it on
 # ssh_host (the actual Docker host) - not necessarily the host running
 # `terraform apply` itself, since this is normally invoked remotely (from
@@ -59,12 +88,13 @@ resource "portainer_stack" "traefik" {
   method          = "string"
   endpoint_id     = data.portainer_environment.target.id
   prune           = true
-  depends_on      = [null_resource.install_dirs]
+  depends_on      = [null_resource.install_dirs, null_resource.root_dynamic_config_dir]
 
   stack_file_content = templatefile(
     "${path.module}/docker-compose.yml.tftpl",
     {
-      lab_domain = local.lab_domain
+      lab_domain              = local.lab_domain
+      root_dynamic_config_dir = var.root_dynamic_config_dir
     }
   )
 

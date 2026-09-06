@@ -73,6 +73,19 @@ data "portainer_environment" "target" {
   name = var.endpoint_name
 }
 
+# Only read when lab_domain isn't set explicitly, so Vault doesn't need to
+# be reachable at all for a run that passes it directly - same pattern as
+# provider.tf's data.vault_kv_secret_v2.portainer.
+data "vault_kv_secret_v2" "lab" {
+  count = var.lab_domain == null ? 1 : 0
+  mount = "secret"
+  name  = "lab"
+}
+
+locals {
+  lab_domain = coalesce(var.lab_domain, try(data.vault_kv_secret_v2.lab[0].data["domain"], null))
+}
+
 resource "portainer_stack" "homeassistant" {
   name            = "homeassistant"
   deployment_type = "standalone"
@@ -86,6 +99,7 @@ resource "portainer_stack" "homeassistant" {
     {
       docker_managed_volumes   = var.docker_managed_volumes
       homeassistant_config_dir = "${var.install_dir}/${var.volume_mounts["homeassistant_config_dir"]}"
+      lab_domain               = local.lab_domain
     }
   )
 
