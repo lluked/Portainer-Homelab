@@ -40,6 +40,19 @@ data "portainer_environment" "target" {
   name = var.endpoint_name
 }
 
+# Only read when lab_domain isn't set explicitly, so Vault doesn't need to
+# be reachable at all for a run that passes it directly - same pattern as
+# provider.tf's data.vault_kv_secret_v2.portainer.
+data "vault_kv_secret_v2" "lab" {
+  count = var.lab_domain == null ? 1 : 0
+  mount = "secret"
+  name  = "lab"
+}
+
+locals {
+  lab_domain = coalesce(var.lab_domain, try(data.vault_kv_secret_v2.lab[0].data["domain"], null))
+}
+
 # Observed against Portainer 2.45.0 (not a filed/tracked issue upstream,
 # just reproduced locally while debugging this): portainer_stack's create path
 # deploys the compose stack, then immediately issues a follow-up PUT to
@@ -67,6 +80,7 @@ resource "portainer_stack" "adguardhome" {
       docker_managed_volumes = var.docker_managed_volumes
       adguardhome_work_dir   = "${var.install_dir}/${var.volume_mounts["adguardhome_work_dir"]}"
       adguardhome_conf_dir   = "${var.install_dir}/${var.volume_mounts["adguardhome_conf_dir"]}"
+      lab_domain             = local.lab_domain
     }
   )
 

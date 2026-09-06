@@ -76,3 +76,9 @@ variable "env" {
   default     = {}
   sensitive   = true
 }
+
+variable "root_dynamic_config_dir" {
+  description = "Host path bind-mounted read-only as Traefik's file provider directory - created and kept up to date by ../traefik-root-discovery/, which derives it from traefik.* labels on containers running on the root (rootful) Docker daemon. Traefik's own Docker provider (below) only ever sees the rootless daemon it shares with this container, since a rootless container can't bind-mount the root socket directly - this file provider is how labels from the root side reach Traefik at all. Must match ../traefik-root-discovery/'s install_dir/volume_mounts (install_dir + volume_mounts[\"dynamic_dir\"]) - that stack must be applied first (see ../../../playbooks/portainer_stacks.yml's stack order) so this path and its initial content already exist before Traefik starts."
+  type        = string
+  default     = "/opt/traefik-root-discovery/dynamic"
+}

@@ -9,12 +9,53 @@ init`/`apply` here directly (via the `terraform` CLI, not an Ansible
 Terraform module), from wherever that playbook itself runs.
 
 - [`plans/traefik/`](plans/traefik/)
+- [`plans/traefik-root-discovery/`](plans/traefik-root-discovery/)
 - [`plans/adguardhome/`](plans/adguardhome/)
 - [`plans/homeassistant/`](plans/homeassistant/)
 
 [`modules/vault_env/`](modules/vault_env/) is not one of these - it's a shared module each
 stack's `provider.tf` calls to read the local Vault setup's address and
 root token (see [`../README.md`](../README.md)'s "Secrets" section).
+
+## Two Docker daemons, one host: how Traefik sees both
+
+The host runs two separate Docker daemons side by side - a rootless one
+(where [`plans/traefik/`](plans/traefik/) and `media-stack` deploy) and the root
+(rootful) one (where [`plans/adguardhome/`](plans/adguardhome/) and
+[`plans/homeassistant/`](plans/homeassistant/) deploy - see each stack's
+`endpoint_name` default in its own `variables.tf`). Traefik's Docker
+provider can only ever watch one daemon's socket, and it's pointed at the
+rootless one it shares with the containers that stack deploys - so on its
+own, Traefik never sees `traefik.*` labels on containers running on the
+root daemon - both adguardhome and homeassistant have them.
+
+[`plans/traefik-root-discovery/`](plans/traefik-root-discovery/) bridges that gap
+without ever handing Traefik (or anything else) direct access to the real
+root socket:
+
+- `socket-proxy` (linuxserver/socket-proxy) sits in front of the root
+  socket, read-only, restricted to just the container-listing/events
+  endpoints Traefik discovery actually needs - never reachable outside an
+  `internal: true` network private to this stack.
+- `traefik-root-discovery` polls that restricted API, reads the same
+  `traefik.*` labels Traefik's own Docker provider would (no relabeling
+  needed), and writes them out as a Traefik file-provider dynamic config -
+  resolving each service's backend to its already-published host port,
+  since a root-daemon container's internal bridge IP isn't reachable from
+  the separate rootless daemon Traefik runs on.
+- Traefik bind-mounts that output directory read-only and watches it via
+  `--providers.file` (see `plans/traefik/variables.tf`'s
+  `root_dynamic_config_dir`), alongside its unchanged Docker provider.
+
+`plans/traefik-root-discovery/` has to be applied before `plans/traefik/` (its
+output directory needs to already exist) -
+[`../playbooks/portainer_stacks.yml`](../playbooks/portainer_stacks.yml) orders it first. A
+root-hosted stack only shows up in Traefik once its container's port is
+reachable at `root_host_address` - either published to the host directly
+(adguardhome) or, for a `network_mode: host` container like homeassistant,
+just the port it listens on (Docker reports no port mapping for those,
+so `traefik-root-discovery` falls back to the container's declared
+`loadbalancer.server.port` directly in that case).
 
 ## What Terraform does and doesn't own
 

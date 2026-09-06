@@ -34,8 +34,12 @@
 
     # Each entry's "name" selects the terraform/<name> directory; any other
     # keys are extra Terraform variables merged on top of the common set
+    # traefik-root-discovery must come before traefik: traefik bind-mounts
+    # the dynamic_dir its install_dirs creates and keeps populated (see
+    # terraform/plans/traefik/variables.tf's root_dynamic_config_dir).
     portainer_stacks:
       - name: traefik
+      - name: traefik-root-discovery
       - name: adguardhome
       - name: homeassistant
 

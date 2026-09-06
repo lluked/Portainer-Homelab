@@ -1,0 +1,253 @@
+name: traefik-root-discovery
+
+services:
+
+  # Restricted, read-only proxy onto this host's real root Docker socket -
+  # exposes only what traefik-root-discovery below needs (container list +
+  # events), never the socket itself, and never a POST/write endpoint. See
+  # https://docs.linuxserver.io/images/docker-socket-proxy/ for the full
+  # environment variable list - every one of them is spelled out below
+  # (rather than just relying on the image's own defaults) so it's obvious
+  # at a glance exactly what surface is and isn't allowed.
+  socket-proxy:
+    container_name: socket-proxy
+    restart: unless-stopped
+    image: lscr.io/linuxserver/socket-proxy:latest
+    environment:
+      - CONTAINERS=1
+      - EVENTS=1
+      - PING=1
+      - VERSION=1
+      - POST=0
+      - ALLOW_START=0
+      - ALLOW_STOP=0
+      - ALLOW_RESTARTS=0
+      - ALLOW_PAUSE=0
+      - ALLOW_UNPAUSE=0
+      - ALLOW_TOP=0
+      - ALLOW_EXEC=0
+      - ALLOW_CHANGES=0
+      - ALLOW_ARCHIVE=0
+      - ALLOW_EXPORT=0
+      - ALLOW_LOGS=0
+      - AUTH=0
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISABLE_IPV6=1
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=0
+      - INFO=0
+      - NETWORKS=0
+      - NODES=0
+      - PLUGINS=0
+      - SECRETS=0
+      - SERVICES=0
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VOLUMES=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    networks:
+      - internal
+
+  # Polls socket-proxy (never the real socket) for running containers,
+  # translates any traefik.* labels it finds into a Traefik file-provider
+  # dynamic config, and writes it to dynamic_dir - which plans/traefik/
+  # bind-mounts read-only, since that's how a Traefik running on the
+  # rootless daemon learns about containers on this (root) daemon at all:
+  # they're two separate Docker daemons on the same host, so Traefik's own
+  # Docker provider (pointed at the rootless socket) can never see these
+  # labels directly, and the reverse (mounting the root socket straight
+  # into a rootless container) isn't possible either. Each service's
+  # backend is resolved to its already-published host port (root_host_address
+  # below), not its container IP, for the same reason - a container IP on
+  # this daemon's bridge network isn't reachable from the rootless one.
+  traefik-root-discovery:
+    container_name: traefik-root-discovery
+    restart: unless-stopped
+    image: python:3-alpine
+    depends_on:
+      - socket-proxy
+    environment:
+      - ROOT_HOST_ADDRESS=${root_host_address}
+    configs:
+      - source: poll_root_labels_script
+        target: /app/poll.py
+        mode: 0500
+    command: ["python3", "/app/poll.py"]
+    volumes:
+      - dynamic:/dynamic
+    networks:
+      - internal
+
+configs:
+
+  poll_root_labels_script:
+    content: |
+      import json
+      import os
+      import time
+      import urllib.request
+
+      SOCKET_PROXY_URL = "http://socket-proxy:2375"
+      OUTPUT_PATH = "/dynamic/root-services.yml"
+      ROOT_HOST_ADDRESS = os.environ["ROOT_HOST_ADDRESS"]
+      POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "10"))
+
+
+      def fetch_containers():
+          with urllib.request.urlopen(SOCKET_PROXY_URL + "/containers/json", timeout=5) as resp:
+              return json.load(resp)
+
+
+      def yaml_quote(value):
+          escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+          return '"' + escaped + '"'
+
+
+      def published_port(container, private_port):
+          for port in container.get("Ports", []):
+              if port.get("PrivatePort") == private_port and port.get("PublicPort"):
+                  return port["PublicPort"]
+          return None
+
+
+      def resolve_port(container, private_port):
+          # Host-network containers (e.g. homeassistant) have no
+          # NAT/port-publish mapping for published_port() to find - Docker
+          # reports an empty Ports list for them - since the container's own
+          # port already *is* the host's port. HostConfig here only ever
+          # carries NetworkMode: containers/json's summary response
+          # deliberately omits the rest of it.
+          if (container.get("HostConfig") or {}).get("NetworkMode") == "host":
+              return private_port
+          return published_port(container, private_port)
+
+
+      # Reads only the small subset of traefik.* labels this repo's stacks
+      # actually use (traefik.enable, traefik.http.routers.<name>.rule/
+      # service/entrypoints, traefik.http.services.<name>.loadbalancer.
+      # server.port/scheme) - not a general Docker-label-to-Traefik
+      # translator. Extend this if a root-hosted stack starts using labels
+      # beyond that set.
+      def build_config(containers):
+          routers = {}
+          services = {}
+
+          for container in containers:
+              labels = container.get("Labels") or {}
+              if labels.get("traefik.enable") != "true":
+                  continue
+              name = container.get("Names", ["?"])[0].lstrip("/")
+
+              router_fields = {}
+              service_fields = {}
+              for key, value in labels.items():
+                  if not key.startswith("traefik.http."):
+                      continue
+                  parts = key[len("traefik.http."):].split(".")
+                  if len(parts) < 3:
+                      continue
+                  kind, entry_name, field = parts[0], parts[1], ".".join(parts[2:])
+                  if kind == "routers":
+                      router_fields.setdefault(entry_name, {})[field] = value
+                  elif kind == "services":
+                      service_fields.setdefault(entry_name, {})[field] = value
+
+              for router_name, fields in router_fields.items():
+                  router = {"service": fields.get("service", router_name)}
+                  if "rule" in fields:
+                      router["rule"] = fields["rule"]
+                  entrypoints = fields.get("entrypoints")
+                  if entrypoints:
+                      router["entryPoints"] = [e.strip() for e in entrypoints.split(",") if e.strip()]
+                  routers[router_name] = router
+
+              for service_name, fields in service_fields.items():
+                  port = fields.get("loadbalancer.server.port")
+                  if not port:
+                      continue
+                  pub_port = resolve_port(container, int(port))
+                  if pub_port is None:
+                      print("traefik-root-discovery: " + name + ": container port " + port
+                            + " isn't published to the host, skipping service " + service_name)
+                      continue
+                  scheme = fields.get("loadbalancer.server.scheme", "http")
+                  url = scheme + "://" + ROOT_HOST_ADDRESS + ":" + str(pub_port)
+                  services[service_name] = {"url": url}
+
+          # Drop routers whose service never made it in (e.g. its port
+          # isn't published to the host) - otherwise Traefik would load a
+          # router pointing at a service that doesn't exist.
+          routers = {name: r for name, r in routers.items() if r["service"] in services}
+
+          return routers, services
+
+
+      def render_yaml(routers, services):
+          if not routers and not services:
+              return "{}\n"
+
+          lines = ["http:"]
+          if routers:
+              lines.append("  routers:")
+              for router_name, router in sorted(routers.items()):
+                  lines.append("    " + router_name + ":")
+                  if "rule" in router:
+                      lines.append("      rule: " + yaml_quote(router["rule"]))
+                  lines.append("      service: " + yaml_quote(router["service"]))
+                  if "entryPoints" in router:
+                      lines.append("      entryPoints:")
+                      for entrypoint in router["entryPoints"]:
+                          lines.append("        - " + yaml_quote(entrypoint))
+          if services:
+              lines.append("  services:")
+              for service_name, service in sorted(services.items()):
+                  lines.append("    " + service_name + ":")
+                  lines.append("      loadBalancer:")
+                  lines.append("        servers:")
+                  lines.append("          - url: " + yaml_quote(service["url"]))
+          return "\n".join(lines) + "\n"
+
+
+      def main():
+          while True:
+              try:
+                  containers = fetch_containers()
+                  routers, services = build_config(containers)
+                  content = render_yaml(routers, services)
+                  tmp_path = OUTPUT_PATH + ".tmp"
+                  with open(tmp_path, "w") as f:
+                      f.write(content)
+                  os.replace(tmp_path, OUTPUT_PATH)
+              except Exception as exc:
+                  print("traefik-root-discovery: error: " + repr(exc))
+              time.sleep(POLL_INTERVAL_SECONDS)
+
+
+      if __name__ == "__main__":
+          main()
+
+volumes:
+
+  dynamic:
+    driver: local
+    driver_opts:
+      type: none
+      device: '${dynamic_dir}'
+      o: bind
+
+networks:
+
+  # internal: true - no gateway to the outside and never published to the
+  # host, so this restricted root Docker API is reachable only by
+  # traefik-root-discovery above, not the LAN or the rootless daemon.
+  internal:
+    internal: true

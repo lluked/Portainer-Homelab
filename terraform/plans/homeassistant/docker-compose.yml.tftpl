@@ -25,6 +25,15 @@ services:
       - homeassistant_config:/config
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
+    labels:
+      - traefik.enable=true
+    # ROUTERS
+      - traefik.http.routers.homeassistant.service=homeassistant
+      - traefik.http.routers.homeassistant.rule=Host(`homeassistant.${lab_domain}`)
+      - traefik.http.routers.homeassistant.entrypoints=websecure
+    # SERVICES
+      - traefik.http.services.homeassistant.loadbalancer.server.scheme=http
+      - traefik.http.services.homeassistant.loadbalancer.server.port=8123
 
 volumes:
 
