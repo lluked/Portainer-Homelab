@@ -10,6 +10,14 @@ services:
       - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
+    # Without these, the Bluetooth integration reports the adapter as
+    # "operating in degraded mode": no automatic adapter recovery, and
+    # management/advertising commands that need a raw HCI socket
+    # (net_raw) or the management API (net_admin) fail. See
+    # https://www.home-assistant.io/integrations/bluetooth/.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     # Docker's default AppArmor profile denies all D-Bus traffic, which
     # blocks the Bluetooth integration's access to BlueZ - see
     # apparmor/docker-homeassistant and main.tf's
