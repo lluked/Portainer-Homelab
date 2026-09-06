@@ -34,6 +34,39 @@ resource "null_resource" "install_dirs" {
   }
 }
 
+# Home Assistant's Bluetooth integration talks to BlueZ over the host's
+# D-Bus system bus (bind-mounted in by docker-compose.yml.tftpl), which
+# Docker's default AppArmor profile denies outright - it ships with no
+# `dbus` rules at all, and D-Bus mediation is default-deny once a profile
+# is confined. This loads a profile that's Docker's default profile plus
+# exactly the D-Bus permissions needed to reach BlueZ (see
+# apparmor/docker-homeassistant), referenced by the compose file's
+# `security_opt: apparmor=docker-homeassistant` instead of the default.
+resource "null_resource" "apparmor_profile" {
+  triggers = {
+    profile = filesha256("${path.module}/apparmor/docker-homeassistant")
+  }
+
+  connection {
+    type        = "ssh"
+    host        = var.ssh_host
+    user        = var.ssh_user
+    private_key = file(pathexpand(var.ssh_private_key_file))
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/apparmor/docker-homeassistant"
+    destination = "/tmp/docker-homeassistant.apparmor"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mv /tmp/docker-homeassistant.apparmor /etc/apparmor.d/docker-homeassistant",
+      "sudo apparmor_parser -r /etc/apparmor.d/docker-homeassistant",
+    ]
+  }
+}
+
 data "portainer_environment" "target" {
   name = var.endpoint_name
 }
@@ -44,7 +77,7 @@ resource "portainer_stack" "homeassistant" {
   method          = "string"
   endpoint_id     = data.portainer_environment.target.id
   prune           = true
-  depends_on      = [null_resource.install_dirs]
+  depends_on      = [null_resource.install_dirs, null_resource.apparmor_profile]
 
   stack_file_content = templatefile(
     "${path.module}/docker-compose.yml.tftpl",
