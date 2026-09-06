@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Ansible
+inventory.ini
+
+# Vault Password File
+vault_pass
+
+# Media Stack
+media-stack/
+*media-stack.yml

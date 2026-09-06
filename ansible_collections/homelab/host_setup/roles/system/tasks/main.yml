@@ -1,0 +1,12 @@
+---
+
+- name: Update packages
+  ansible.builtin.import_tasks: updates.yml
+
+- name: Apply systemd-resolved changes
+  ansible.builtin.import_tasks: systemd_resolved.yml
+  when: system_disable_resolved_stub_listener
+
+- name: Set up bluetooth
+  ansible.builtin.import_tasks: bluetooth.yml
+  when: system_bluetooth_setup

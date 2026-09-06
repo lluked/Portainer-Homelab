@@ -1,0 +1,9 @@
+---
+
+# Disable systemd-resolved's DNS stub listener (127.0.0.53:53) so containers
+# can bind port 53 themselves (e.g. AdGuardHome, Pi-hole). Disable this if
+# something on the host still needs the stub resolver.
+system_disable_resolved_stub_listener: true
+
+# Install bluez and bluez-tools for bluetooth support.
+system_bluetooth_setup: true

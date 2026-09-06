@@ -1,0 +1,14 @@
+---
+
+- name: ensure facts output directory exists
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../ansible_facts_output"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+
+- name: save all facts to host specific file
+  ansible.builtin.copy:
+    content: "{{ ansible_facts | to_nice_json }}"
+    dest: "{{ playbook_dir }}/../../ansible_facts_output/{{ ansible_facts['hostname'] }}.json"
+  delegate_to: localhost

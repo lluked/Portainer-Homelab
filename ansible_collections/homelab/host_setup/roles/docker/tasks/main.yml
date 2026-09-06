@@ -1,0 +1,92 @@
+---
+
+- name: Ensure exactly one docker context is marked default
+  ansible.builtin.assert:
+    that:
+      - docker_contexts | selectattr('default', 'defined') | selectattr('default') | list | length == 1
+    fail_msg: >-
+      Exactly one entry in docker_contexts must have `default: true`, found
+      {{ docker_contexts | selectattr('default', 'defined') | selectattr('default') | list | length }}.
+
+- name: Check if docker is installed
+  become: true
+  ansible.builtin.command: docker --version
+  register: docker_installed
+  ignore_errors: true
+
+- name: Purge all containers and volumes from every docker context
+  ansible.builtin.include_tasks: purge_containers.yml
+  loop: "{{ docker_contexts }}"
+  loop_control:
+    loop_var: context
+    label: "{{ context.name }}"
+  when: docker_installed.failed == false and docker_purge_install | bool
+
+- name: Stop any running containers before reinstalling docker packages
+  ansible.builtin.include_tasks: stop_containers.yml
+  loop: "{{ docker_contexts }}"
+  loop_control:
+    loop_var: context
+    label: "{{ context.name }}"
+  when: docker_installed.failed == false and not (docker_purge_install | bool)
+
+- name: Remove conflicting packages
+  become: true
+  ansible.builtin.apt:
+    pkg: "{{ conflicting_packages }}"
+    state: absent
+
+- name: Remove docker packages
+  become: true
+  ansible.builtin.apt:
+    pkg: "{{ docker_packages + [docker_rootless_package] }}"
+    state: absent
+
+- name: Install ca-certificates
+  become: true
+  ansible.builtin.apt:
+    name: ca-certificates
+
+- name: Update certificates
+  become: true
+  ansible.builtin.shell: update-ca-certificates -f
+
+- name: Add docker signing key
+  become: true
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '644'
+
+- name: Remove legacy docker apt repo file
+  become: true
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+
+- name: Install docker repo
+  become: true
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: deb
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    architectures: arm64
+    signed_by: /etc/apt/keyrings/docker.asc
+    state: present
+
+- name: Install docker (rootful and rootless side by side)
+  become: true
+  ansible.builtin.apt:
+    pkg: "{{ docker_packages + docker_rootless_prereq_packages + [docker_rootless_package] }}"
+    update_cache: yes
+
+- name: Run post install steps for rootful docker
+  ansible.builtin.import_tasks: rootfull_setup.yml
+
+- name: Run rootless setup
+  ansible.builtin.import_tasks: rootless_setup.yml
+
+- name: Configure docker contexts
+  ansible.builtin.import_tasks: context_setup.yml

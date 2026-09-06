@@ -1,0 +1,56 @@
+---
+
+# Contexts are stored per-user under ~/.docker/contexts, so these run as
+# the ansible_user (no become), same as the docker CLI itself will.
+#
+# docker's built-in "default" context always exists, but unlike other
+# contexts its host isn't stored in ~/.docker/contexts - it's fixed by the
+# CLI itself (DOCKER_HOST, or the platform socket) and `docker context
+# create/update/rm default` all fail with "reserved context name". So it
+# can't be repointed at whichever docker_contexts entry is marked
+# `default: true`; instead that entry is just made the *current* context.
+
+- name: List existing docker contexts
+  ansible.builtin.command: docker context ls --quiet
+  register: _existing_docker_contexts
+  changed_when: false
+
+- name: Create docker contexts
+  ansible.builtin.command:
+    cmd: "docker context create {{ item.name }} --docker host={{ item.host }}"
+  loop: "{{ docker_contexts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in _existing_docker_contexts.stdout_lines
+
+- name: Update docker contexts to match the configured hosts
+  ansible.builtin.command:
+    cmd: "docker context update {{ item.name }} --docker host={{ item.host }}"
+  loop: "{{ docker_contexts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name in _existing_docker_contexts.stdout_lines
+  changed_when: false
+
+- name: Remove docker contexts that are no longer managed
+  ansible.builtin.command:
+    cmd: "docker context rm {{ item }}"
+  loop: >-
+    {{ (_existing_docker_contexts.stdout_lines
+        | difference(docker_contexts | map(attribute='name') | list))
+       | reject('equalto', 'default') | list }}
+  loop_control:
+    label: "{{ item }}"
+
+- name: Determine the current docker context
+  ansible.builtin.command: docker context show
+  register: _current_docker_context
+  changed_when: false
+
+- name: Set the default docker context
+  ansible.builtin.command: >-
+    docker context use
+    {{ (docker_contexts | selectattr('default', 'defined') | selectattr('default') | first).name }}
+  when: >-
+    _current_docker_context.stdout !=
+    (docker_contexts | selectattr('default', 'defined') | selectattr('default') | first).name

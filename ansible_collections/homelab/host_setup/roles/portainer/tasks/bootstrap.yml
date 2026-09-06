@@ -1,0 +1,102 @@
+---
+
+- name: Wait for the Portainer API to be reachable
+  ansible.builtin.uri:
+    url: "{{ portainer_api_url }}/status"
+    validate_certs: "{{ portainer_api_validate_certs }}"
+    status_code: [200]
+  register: _portainer_status
+  until: _portainer_status.status == 200
+  retries: 30
+  delay: 2
+
+- name: Check whether the Portainer admin account is already set up
+  homelab.portainer.validate_credentials:
+    api_url: "{{ portainer_api_url }}"
+    username: "{{ portainer_username }}"
+    password: "{{ portainer_password }}"
+    validate_certs: "{{ portainer_api_validate_certs }}"
+  register: _portainer_admin_check
+
+- name: Bootstrap the Portainer admin account
+  when: not _portainer_admin_check.valid
+  block:
+    - name: Retrieve the Portainer container's logs
+      ansible.builtin.command: docker logs portainer
+      environment:
+        DOCKER_HOST: "{{ _portainer_docker_socket }}"
+      register: _portainer_logs
+      changed_when: false
+
+    - name: Extract the initial admin setup token from the container logs
+      # regex_search with a capture-group arg returns a list (even for a
+      # single group) rather than the bare string - unwrap it with `first`,
+      # or the X-Setup-Token header below ends up as Jinja's stringified
+      # list repr ("['<token>']"), which Portainer correctly rejects as
+      # invalid.
+      ansible.builtin.set_fact:
+        _portainer_setup_token: >-
+          {{ (_portainer_logs.stdout + _portainer_logs.stderr)
+             | regex_search('setup_token=([^\s"]+)', '\1')
+             | default([], true) | first | default('', true) }}
+
+    - name: Create the initial Portainer admin account
+      homelab.portainer.bootstrap_admin:
+        api_url: "{{ portainer_api_url }}"
+        username: "{{ portainer_username }}"
+        password: "{{ portainer_password }}"
+        setup_token: "{{ _portainer_setup_token }}"
+        validate_certs: "{{ portainer_api_validate_certs }}"
+      register: _portainer_admin_init
+
+- name: Auto-generate a Portainer API key from the admin credentials
+  homelab.portainer.api_key:
+    api_url: "{{ portainer_api_url }}"
+    username: "{{ portainer_username }}"
+    password: "{{ portainer_password }}"
+    description: "{{ portainer_token_description }}"
+    validate_certs: "{{ portainer_api_validate_certs }}"
+  register: _portainer_api_key
+
+- name: Use the freshly created key for the rest of this run
+  ansible.builtin.set_fact:
+    portainer_api_key: "{{ _portainer_api_key.api_key }}"
+
+- name: Split docker contexts
+  ansible.builtin.set_fact:
+    _portainer_local_context: "{{ portainer_docker_contexts | selectattr('name', 'in', ['root', 'default']) | list | first }}"
+    _portainer_edge_context: "{{ portainer_docker_contexts | selectattr('name', 'in', ['rootless', 'default']) | list | first }}"
+
+- name: "Register {{ _portainer_local_context.name }} as a local Portainer environment"
+  homelab.portainer.environment:
+    api_url: "{{ portainer_api_url }}"
+    api_key: "{{ portainer_api_key }}"
+    validate_certs: "{{ portainer_api_validate_certs }}"
+    name: "{{ _portainer_local_context.name }}"
+    type: local
+    url: "unix:///var/run/docker.sock"
+    group: "{{ portainer_environment_group }}"
+
+- name: "Register {{ _portainer_edge_context.name }} as the Edge Agent Portainer environment"
+  homelab.portainer.environment:
+    api_url: "{{ portainer_api_url }}"
+    api_key: "{{ portainer_api_key }}"
+    validate_certs: "{{ portainer_api_validate_certs }}"
+    name: "{{ _portainer_edge_context.name }}"
+    type: edge
+    url: "{{ portainer_edge_agent_server_url }}"
+    group: "{{ portainer_environment_group }}"
+  register: _portainer_edge_endpoints
+
+- name: Delete the auto-generated Portainer API key now that it's been used
+  homelab.portainer.api_key:
+    api_url: "{{ portainer_api_url }}"
+    username: "{{ portainer_username }}"
+    password: "{{ portainer_password }}"
+    description: "{{ portainer_token_description }}"
+    validate_certs: "{{ portainer_api_validate_certs }}"
+    state: absent
+
+- name: Clear the revoked key from facts
+  ansible.builtin.set_fact:
+    portainer_api_key: ""

@@ -1,0 +1,50 @@
+---
+
+# Included per-entry from docker_contexts with `context` set to the loop
+# item, when docker_purge_install is true. Ignores failures so a fresh
+# install (where one of the sockets doesn't exist yet) doesn't block the
+# rest of the role.
+
+- name: "{{ context.name }}: check for existing containers, volumes, and networks"
+  community.docker.docker_host_info:
+    containers: yes
+    containers_all: yes
+    volumes: yes
+    networks: yes
+    docker_host: "{{ context.host }}"
+  environment:
+    DOCKER_HOST: "{{ context.host }}"
+  register: _docker_info
+  ignore_errors: true
+
+- name: "{{ context.name }}: remove all containers"
+  community.docker.docker_container:
+    name: "{{ item }}"
+    state: absent
+    force_kill: true
+    docker_host: "{{ context.host }}"
+  environment:
+    DOCKER_HOST: "{{ context.host }}"
+  loop: "{{ (_docker_info.containers | default([])) | map(attribute='Id') | list }}"
+  when: _docker_info is succeeded
+
+- name: "{{ context.name }}: remove all volumes"
+  community.docker.docker_volume:
+    name: "{{ item }}"
+    state: absent
+    docker_host: "{{ context.host }}"
+  environment:
+    DOCKER_HOST: "{{ context.host }}"
+  loop: "{{ (_docker_info.volumes | default([])) | map(attribute='Name') | list }}"
+  when: _docker_info is succeeded
+
+- name: "{{ context.name }}: remove all networks not installed by docker itself"
+  community.docker.docker_network:
+    name: "{{ item }}"
+    state: absent
+    force: true
+    docker_host: "{{ context.host }}"
+  environment:
+    DOCKER_HOST: "{{ context.host }}"
+  loop: "{{ (_docker_info.networks | default([])) | map(attribute='Name') | reject('in', ['bridge', 'host', 'none']) | list }}"
+  when: _docker_info is succeeded

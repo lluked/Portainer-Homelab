@@ -1,0 +1,26 @@
+---
+# Base host setup: facts, OS updates, host-level tweaks (e.g. freeing port
+# 53 from systemd-resolved), and the Docker + Portainer install.
+# Run this first (and re-run any time; all roles are idempotent). Docker is
+# installed rootful and rootless side by side, with a docker context for
+# each ("rootful" / "rootless" - rootless is the default). Portainer runs
+# on the rootful engine and is connected to both. Set portainer_password in
+# the vault (as vault_portainer_password) before the first run - the admin
+# account and API key are then bootstrapped automatically and the rootless
+# environment registered. Run playbooks/portainer_stacks/main.yml afterwards
+# to deploy stacks.
+
+- hosts: ['remote_host']
+
+  roles:
+    - role: homelab.host_setup.system
+    - role: homelab.host_setup.docker
+      vars:
+        # Wipes every container and volume on every docker context (root
+        # and rootless) before docker itself gets reinstalled.
+        docker_purge_install: true
+    - role: homelab.host_setup.portainer
+      vars:
+        # Wipes the existing portainer_data volume (all users, settings,
+        # and registered environments) on every run.
+        portainer_purge_install: true

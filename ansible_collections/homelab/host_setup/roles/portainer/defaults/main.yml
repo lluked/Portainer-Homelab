@@ -1,0 +1,94 @@
+---
+
+portainer_image: portainer/portainer-ce:latest
+
+# Portainer's own container always runs on the "root" docker context (its
+# process needs root to manage the socket/volumes cleanly), and its install
+# dir is root-owned to match. It also manages every other context, each via
+# its own Edge Agent - see tasks/bootstrap.yml - so the same instance
+# manages all of them.
+portainer_install_dir: /opt/portainer
+
+# Tears down any existing portainer stack and deletes its portainer_data
+# volume (all users, settings, and registered environments) before
+# recreating it. Destructive - defaults to false so a normal re-run of this
+# role stays idempotent; flip it on deliberately for a one-off reset.
+portainer_purge_install: false
+
+# Context list (name/host pairs, same shape as the docker role's
+# docker_contexts - see ansible_collections/homelab/host_setup/roles/docker/defaults). The
+# "root" entry is where portainer itself runs and is bind-mounted directly
+# at /var/run/docker.sock and registered as a local environment; every
+# other entry gets its own Edge Agent deployed onto it (tasks/bootstrap.yml)
+# and is registered as an Edge environment named after the context -
+# Portainer's stack deployment doesn't work for a second bind-mounted local
+# socket, only a real agent, hence the split. Uses the docker role's
+# docker_contexts when it's defined (as it is when the two roles run
+# together, e.g. playbooks/host_setup.yml); otherwise tasks/main.yml sets
+# portainer_docker_contexts_default from the target host's actual current
+# docker context before this is first used. Pass your own to override
+# either way.
+portainer_docker_contexts: "{{ docker_contexts }}"
+
+# Portainer API endpoint used for bootstrapping the admin account and
+# registering the non-root environments. Runs against the loopback address
+# since this executes on the target host itself, alongside Portainer.
+portainer_api_url: "https://127.0.0.1:9443/api"
+portainer_api_validate_certs: false
+
+# Every docker_contexts entry other than the primary one (see
+# _portainer_docker_socket) is registered as a Portainer Edge Agent environment
+# rather than a bind-mounted local socket - see tasks/bootstrap.yml for why.
+# This is the port Portainer's own container publishes for the Edge Agents'
+# reverse tunnel to dial back into - 8000 is also Portainer's own built-in
+# default tunnel port (used whenever it isn't told otherwise), so this has to
+# stay in step with that unless a --tunnel-port override is added.
+portainer_edge_tunnel_port: 8000
+
+# Portainer's own HTTPS URL as reachable from the context each Edge Agent
+# actually runs on (not the loopback portainer_api_url) - passed as the
+# `url` of the edge environment registration in tasks/bootstrap.yml, where
+# Portainer embeds its hostname in the generated Edge key so each agent
+# knows where to poll/tunnel back to. Port must match the docker-compose.yml.j2
+# HTTPS port mapping (9443).
+portainer_edge_agent_server_url: "https://{{ ansible_host }}:9443"
+
+# Image used for the Edge Agent containers deployed onto every non-primary
+# docker context. Tracks :latest like portainer_image above - keep both in
+# step, since agent/server version mismatches are a common source of Edge
+# connectivity failures.
+portainer_edge_agent_image: portainer/agent:latest
+
+# Parent install dir for each Edge Agent's compose project - one subdirectory
+# per non-primary docker_contexts entry (e.g. .../rootless).
+portainer_edge_agent_install_dir: /opt/portainer-edge-agent
+
+# Tears down any existing Edge Agent stack (see portainer_purge_install above
+# for the equivalent on the main Portainer install). Destructive - defaults
+# to false so a normal re-run stays idempotent.
+portainer_edge_agent_purge_install: false
+
+# Credentials for Portainer's initial admin account. Sourced from the vault
+# (see group_vars) and left blank by default so a fresh install still
+# succeeds without them - the admin account just won't be created until
+# you supply a password and re-run, same as portainer_api_key below.
+portainer_username: admin
+portainer_password: ""
+
+# Description given to the API token the portainer_api_key module
+# auto-creates and revokes in tasks/main.yml - see that file for details.
+portainer_token_description: portainer_setup
+
+# Auto-generated (via the portainer_api_key module) using
+# portainer_username/portainer_password, if left blank here. Left blank by
+# default so a fresh install still succeeds without credentials -
+# environments just won't be registered until either this or a manually
+# generated key is supplied and the role re-run. The same key used by
+# portainer_stacks_portainer_api_key works fine here.
+portainer_api_key: ""
+
+# Portainer environment group the local and Edge environments registered in
+# tasks/bootstrap.yml are placed into (created if it doesn't exist yet).
+# Defaults to "local" so every environment on this host is grouped together -
+# override per-host if managing several hosts from one Portainer instance.
+portainer_environment_group: "local"

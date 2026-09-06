@@ -1,0 +1,7 @@
+{
+
+  "files.associations": {
+    "docker-compose.yml.tftpl": "dockercompose"
+  }
+
+}

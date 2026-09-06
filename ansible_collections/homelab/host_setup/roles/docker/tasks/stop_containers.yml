@@ -1,0 +1,24 @@
+---
+
+# Included per-entry from docker_contexts with `context` set to the loop
+# item. Ignores failures so a fresh install (where one of the sockets
+# doesn't exist yet) doesn't block the rest of the role.
+
+- name: "{{ context.name }}: check for running containers"
+  community.docker.docker_host_info:
+    containers: yes
+    docker_host: "{{ context.host }}"
+  environment:
+    DOCKER_HOST: "{{ context.host }}"
+  register: _docker_info
+  ignore_errors: true
+
+- name: "{{ context.name }}: stop any running containers"
+  community.docker.docker_container:
+    name: "{{ item }}"
+    state: stopped
+    docker_host: "{{ context.host }}"
+  environment:
+    DOCKER_HOST: "{{ context.host }}"
+  loop: "{{ (_docker_info.containers | default([])) | map(attribute='Id') | list }}"
+  when: _docker_info is succeeded

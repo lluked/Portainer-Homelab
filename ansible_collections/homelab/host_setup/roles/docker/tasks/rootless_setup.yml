@@ -1,0 +1,52 @@
+---
+
+- name: Enable lingering so the rootless daemon survives logout/reboot
+  become: true
+  ansible.builtin.command: "loginctl enable-linger {{ ansible_facts['user_id'] }}"
+  args:
+    creates: "/var/lib/systemd/linger/{{ ansible_facts['user_id'] }}"
+
+- name: Check if rootless docker is already set up
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['user_dir'] }}/.config/systemd/user/docker.service"
+  register: rootless_docker_unit
+
+- name: Run the rootless docker setup tool
+  ansible.builtin.command: dockerd-rootless-setuptool.sh install
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['user_uid'] }}"
+  when: not rootless_docker_unit.stat.exists
+
+- name: Locate the rootlesskit binary
+  ansible.builtin.command: which rootlesskit
+  register: rootlesskit_bin
+  changed_when: false
+
+- name: Allow rootlesskit to bind privileged ports (e.g. DNS on 53, HTTP on 80)
+  become: true
+  community.general.capabilities:
+    path: "{{ rootlesskit_bin.stdout }}"
+    capability: cap_net_bind_service+ep
+    state: present
+  register: rootlesskit_capabilities
+
+- name: Enable and start the rootless docker user service
+  ansible.builtin.systemd:
+    name: docker.service
+    scope: user
+    state: started
+    enabled: true
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['user_uid'] }}"
+
+- name: Restart rootless docker so a newly (re)applied capability takes effect
+  # setcap only affects new process launches - if rootlesskit was already
+  # running (e.g. its binary got replaced by an apt upgrade, which strips
+  # capabilities), the live process won't have the capability until restarted.
+  ansible.builtin.systemd:
+    name: docker.service
+    scope: user
+    state: restarted
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['user_uid'] }}"
+  when: rootlesskit_capabilities.changed

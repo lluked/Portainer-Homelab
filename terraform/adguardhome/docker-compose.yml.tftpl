@@ -1,0 +1,31 @@
+name: adguardhome
+
+services:
+
+  adguardhome:
+    container_name: adguardhome
+    restart: unless-stopped
+    image: adguard/adguardhome:latest
+    ports:
+      - 53:53/tcp
+      - 53:53/udp
+      - 3000:3000/tcp
+    volumes:
+      - adguardhome_work:/opt/adguardhome/work
+      - adguardhome_conf:/opt/adguardhome/conf
+
+volumes:
+
+  adguardhome_work:
+    driver: local
+    driver_opts:
+      type: none
+      device: '${adguardhome_work_dir}'
+      o: bind
+
+  adguardhome_conf:
+    driver: local
+    driver_opts:
+      type: none
+      device: '${adguardhome_conf_dir}'
+      o: bind

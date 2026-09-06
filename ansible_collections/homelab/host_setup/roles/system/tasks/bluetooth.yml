@@ -1,0 +1,10 @@
+---
+
+- name: Install bluetooth packages
+  ansible.builtin.apt:
+    name:
+      - bluez
+      - bluez-tools
+    state: present
+    update_cache: true
+  become: true

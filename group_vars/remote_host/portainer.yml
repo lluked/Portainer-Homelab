@@ -1,0 +1,15 @@
+---
+
+# Portainer API endpoint. Runs against the loopback address because
+# these tasks execute on the target host itself, alongside the
+# Portainer instance deployed by playbooks/host_setup.yml.
+portainer_api_url: "https://127.0.0.1:9443/api"
+
+# Portainer's self-signed cert (unless you've replaced it) won't validate.
+portainer_api_validate_certs: false
+
+# Username and password for the Portainer instance.
+portainer_username: admin
+
+# Password for the Portainer instance. Loaded from the vault, so not stored in plaintext in this repo.
+portainer_password: "{{ vault_portainer_password }}"

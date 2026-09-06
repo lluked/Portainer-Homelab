@@ -1,0 +1,25 @@
+---
+
+- name: Determine the standalone docker_contexts fallback
+  when: portainer_docker_contexts is not defined
+  block:
+    - name: Inspect the host's current default docker context
+      ansible.builtin.command: docker context inspect
+      register: _current_docker_context
+      changed_when: false
+
+    - name: Set the standalone docker_contexts fallback from the host's current context
+      ansible.builtin.set_fact:
+        portainer_docker_contexts:
+          - name: default
+            host: "{{ (_current_docker_context.stdout | from_json).0.Endpoints.docker.Host }}"
+            default: true
+
+- name: Install portainer
+  ansible.builtin.import_tasks: portainer_install.yml
+
+- name: Run bootstrap setup
+  ansible.builtin.import_tasks: bootstrap.yml
+
+- name: Install portainer edge agent
+  ansible.builtin.import_tasks: portainer_edge_agent_install.yml

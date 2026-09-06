@@ -1,0 +1,49 @@
+conflicting_packages:
+  - docker.io
+  - docker-doc
+  - docker-compose
+  - docker-compose-v2
+  - podman-docker
+  - containerd
+  - runc
+
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+docker_rootless_prereq_packages:
+  - uidmap
+  - dbus-user-session
+  - slirp4netns
+  - fuse-overlayfs
+  - libcap2-bin
+
+docker_rootless_package: docker-ce-rootless-extras
+
+docker_root_socket_path: /var/run/docker.sock
+docker_rootless_socket_path: "/run/user/{{ ansible_facts['user_uid'] }}/docker.sock"
+
+# Wipes every container and volume on every context in docker_contexts
+# before docker itself gets reinstalled - a full reset back to empty
+# engines, not just a package reinstall (that alone leaves existing
+# containers/volumes on disk, just stopped). Destructive - defaults to
+# false so a normal run stays non-destructive; flip it on deliberately for
+# a one-off wipe.
+docker_purge_install: false
+
+# Both the rootful (system-wide, root-owned) and rootless (per-user) docker
+# daemons are installed and run side by side. Each gets registered as a
+# docker context (see contexts.yml) under the ansible_user so `docker`
+# commands can target either with `docker --context <name> ...` or
+# `docker context use <name>`. Exactly one entry must have `default: true`
+# - that's the context `docker context use` is left pointed at (contexts.yml
+# asserts this and fails loudly if it's not the case).
+docker_contexts:
+  - name: root
+    host: "unix://{{ docker_root_socket_path }}"
+  - name: rootless
+    host: "unix://{{ docker_rootless_socket_path }}"
+    default: true

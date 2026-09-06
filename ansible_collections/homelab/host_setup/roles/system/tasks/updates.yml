@@ -1,0 +1,12 @@
+---
+
+- name: Update all packages to their latest version
+  ansible.builtin.apt:
+    name: "*"
+    state: latest
+  become: true
+
+- name: Upgrade the dist (apt-get dist-upgrade)
+  ansible.builtin.apt:
+    upgrade: dist
+  become: true

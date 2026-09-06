@@ -1,0 +1,48 @@
+name: traefik
+
+services:
+
+  traefik:
+    container_name: traefik
+    restart: unless-stopped
+    image: traefik:v3.7.11
+    command:
+      - --api.insecure=true
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=proxy
+      - --entryPoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entryPoints.websecure.address=:443
+      - --entryPoints.websecure.http.tls=true
+    ports:
+      - 80:80/tcp
+      - 443:443/tcp
+      - 8080:8080/tcp
+    volumes:
+      - /var/run/user/1000/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+    # ROUTERS
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.rule=Host(`traefik.media-stack.priv`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+      - traefik.http.routers.traefik.entrypoints=websecure
+    # SERVICES
+      - traefik.http.services.traefik.loadbalancer.server.scheme=https
+      - traefik.http.services.traefik.loadbalancer.server.port=8080
+
+networks:
+  # Created here (not external) so this stack owns it. Other stacks attach
+  # to it by name to be discovered and routed by Traefik:
+  #
+  #   networks:
+  #     proxy:
+  #       external: true
+  #       name: proxy
+  proxy:
+    name: proxy
+    driver: bridge

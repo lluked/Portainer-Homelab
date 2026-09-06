@@ -1,0 +1,53 @@
+---
+
+- name: Determine the edge agent's docker context and Edge credentials
+  ansible.builtin.set_fact:
+    _portainer_edge_agent_docker_socket: >-
+      {{ (((portainer_docker_contexts | selectattr('name', 'equalto', 'rootless') | list)
+           or (portainer_docker_contexts | selectattr('name', 'equalto', 'default') | list))
+          | first).host }}
+    edge_id: "{{ _portainer_edge_endpoints.endpoint.EdgeID }}"
+    edge_key: "{{ _portainer_edge_endpoints.edge_key }}"
+
+- name: Ensure portainer agent directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ portainer_edge_agent_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Template docker compose file
+  become: true
+  ansible.builtin.template:
+    src: edge_agent.docker-compose.yml.j2
+    dest: "{{ portainer_edge_agent_install_dir }}/docker-compose.yml"
+
+- name: Template .env
+  become: true
+  ansible.builtin.template:
+    src: edge_agent.env.j2
+    dest: "{{ portainer_edge_agent_install_dir }}/.env"
+
+- name: Purge existing portainer install (including its data volume)
+  community.docker.docker_compose_v2:
+    project_src: "{{ portainer_edge_agent_install_dir }}"
+    docker_host: "{{ _portainer_edge_agent_docker_socket }}"
+    state: absent
+    remove_volumes: true
+  environment:
+    DOCKER_HOST: "{{ _portainer_edge_agent_docker_socket }}"
+  when: portainer_edge_agent_purge_install | bool
+
+- name: Create and start portainer
+  community.docker.docker_compose_v2:
+    project_src: "{{ portainer_edge_agent_install_dir }}"
+    docker_host: "{{ _portainer_edge_agent_docker_socket }}"
+  environment:
+    DOCKER_HOST: "{{ _portainer_edge_agent_docker_socket }}"
+  register: compose_output
+
+- name: Show results
+  ansible.builtin.debug:
+    var: compose_output

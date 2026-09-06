@@ -1,0 +1,37 @@
+---
+
+# systemd-resolved's stub resolver binds 127.0.0.53:53 (and 127.0.0.54:53).
+# Linux won't let another process bind the wildcard 0.0.0.0:53 while that
+# specific-address bind holds the same port, so any container publishing
+# port 53 (AdGuardHome, Pi-hole, ...) fails with "address already in use"
+# even though `ss` shows no process on 0.0.0.0:53. Disabling just the stub
+# listener frees the port while leaving systemd-resolved itself running.
+- name: Disable systemd-resolved's DNS stub listener
+  become: true
+  community.general.ini_file:
+    path: /etc/systemd/resolved.conf
+    section: Resolve
+    option: DNSStubListener
+    value: "no"
+    mode: '0644'
+  register: resolved_stub_listener
+
+- name: Restart systemd-resolved
+  become: true
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted
+  when: resolved_stub_listener.changed
+
+# /etc/resolv.conf normally symlinks to the stub file
+# (/run/systemd/resolve/stub-resolv.conf), which points resolution at the
+# now-disabled 127.0.0.53 stub. Repoint it at systemd-resolved's other
+# generated file, which lists the real upstream nameservers directly, so
+# host DNS resolution keeps working.
+- name: Point /etc/resolv.conf at systemd-resolved's non-stub file
+  become: true
+  ansible.builtin.file:
+    src: /run/systemd/resolve/resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true

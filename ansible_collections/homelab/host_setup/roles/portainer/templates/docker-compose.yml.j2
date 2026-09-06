@@ -1,0 +1,23 @@
+name: portainer
+
+services:
+
+  portainer:
+    container_name: portainer
+    restart: always
+    image: ${PORTAINER_IMAGE}
+    ports:
+        - 9000:9000
+        - 9443:9443
+        - {{ portainer_edge_tunnel_port }}:{{ portainer_edge_tunnel_port }}
+    volumes:
+        # Only the context portainer itself runs on (see _portainer_docker_socket in
+        # tasks/portainer_install.yml) is bind-mounted directly - every other context is managed
+        # through its own Edge Agent instead (see tasks/bootstrap.yml/edge_agent.yml),
+        # since Portainer's stack deployment engine can't actually target a second
+        # bind-mounted local socket, only the one it considers its own.
+        - {{ _portainer_docker_socket | regex_replace('^unix://', '') }}:/var/run/docker.sock
+        - portainer_data:/data
+
+volumes:
+  portainer_data:

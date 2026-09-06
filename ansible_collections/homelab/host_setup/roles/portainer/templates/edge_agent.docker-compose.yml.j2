@@ -1,0 +1,27 @@
+name: portainer-agent
+
+services:
+
+  agent:
+    container_name: portainer_agent
+    restart: always
+    image: ${PORTAINER_EDGE_AGENT_IMAGE}
+    environment:
+      EDGE: "1"
+      EDGE_ID: "{{ edge_id }}"
+      EDGE_KEY: "{{ edge_key }}"
+      # Portainer's own API cert is self-signed (see portainer_api_validate_certs) - the
+      # agent's initial poll to fetch tunnel setup info is HTTPS against that same cert.
+      EDGE_INSECURE_POLL: "1"
+    volumes:
+      # The source here is resolved by whichever daemon this compose file gets sent to
+      # (docker_host in edge_agent.yml), not by the ansible-user filesystem view - and
+      # that daemon isn't chrooted, so a plain "/var/run/docker.sock" source would
+      # resolve to the *root* socket even when sent to the rootless daemon (same
+      # mistake this whole migration exists to fix). Has to be this context's own
+      # socket path explicitly.
+      - {{ _portainer_edge_agent_docker_socket | regex_replace('^unix://', '') }}:/var/run/docker.sock
+      - portainer_edge_agent_data:/data
+
+volumes:
+  portainer_edge_agent_data:
