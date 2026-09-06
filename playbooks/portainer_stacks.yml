@@ -38,8 +38,8 @@
     # the dynamic_dir its install_dirs creates and keeps populated (see
     # terraform/plans/traefik/variables.tf's root_dynamic_config_dir).
     portainer_stacks:
-      - name: traefik
       - name: traefik-root-discovery
+      - name: traefik
       - name: adguardhome
       - name: homeassistant
 

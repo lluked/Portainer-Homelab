@@ -20,7 +20,7 @@ root token (see [`../README.md`](../README.md)'s "Secrets" section).
 ## Two Docker daemons, one host: how Traefik sees both
 
 The host runs two separate Docker daemons side by side - a rootless one
-(where [`plans/traefik/`](plans/traefik/) and `media-stack` deploy) and the root
+(where [`plans/traefik/`](plans/traefik/) deploys) and the root
 (rootful) one (where [`plans/adguardhome/`](plans/adguardhome/) and
 [`plans/homeassistant/`](plans/homeassistant/) deploy - see each stack's
 `endpoint_name` default in its own `variables.tf`). Traefik's Docker
